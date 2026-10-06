@@ -731,7 +731,7 @@ const CLASSES = ['Operating Systems', 'Computer Networks', 'Data Structures and 
 const SKILLS = {
   skLang: [['C/C++'], ['Python'], ['Go'], ['Java'], ['SQL'], ['JavaScript'], ['TypeScript'], ['HTML/CSS'], ['R']],
   skFw: [['PyTorch'], ['FastAPI'], ['React'], ['Next.js'], ['Node.js'], ['Flask'], ['Django'], ['Spring Boot'], ['JUnit']],
-  skSys: [['CUDA'], ['Kubernetes'], ['Kafka'], ['Docker'], ['Linux'], ['AWS (EC2, S3, EKS)'], ['ClickHouse'], ['Redis'], ['Git'], ['Vercel'], ['Railway'], ['Heroku'], ['JupyterLab']]
+  skSys: [['CUDA'], ['Kubernetes'], ['Kafka'], ['Docker'], ['UNIX & Linux'], ['AWS (EC2, S3, EKS)'], ['ClickHouse'], ['Redis'], ['Git'], ['Vercel'], ['Railway'], ['Heroku'], ['JupyterLab']]
 };
 const ORDER = WORK.concat(PROJECTS);
 const BY = {}; [ME].concat(ORDER).forEach(d => { BY[d.key] = d; });
@@ -1495,6 +1495,96 @@ sparkle.resize();
 time = 2.2;
 wake(heroTilt);
 start();
+})();
+</script>
+<script>
+/* =====================================================================
+   Visit logging — posts to the analytics Worker. Fails silently.
+   ===================================================================== */
+(function () {
+  var ENDPOINT = 'https://pranith-analytics-collector.pranith-analytics-collector.workers.dev/e';
+  if (ENDPOINT.indexOf('REPLACE-ME') > -1) return;
+
+  function rand() {
+    try { if (self.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+    return Math.random().toString(36).slice(2) + Date.now().toString(36);
+  }
+  function keep(store, key) {
+    try {
+      var v = store.getItem(key);
+      if (!v) { v = rand(); store.setItem(key, v); }
+      return v;
+    } catch (e) { return rand(); }
+  }
+
+  var vid = keep(localStorage, '_vid');   // same person across visits
+  var sid = keep(sessionStorage, '_sid'); // one tab visit
+
+  function send(ev, detail, ms) {
+    var body = JSON.stringify({
+      v: vid, s: sid, e: ev,
+      d: detail || null,
+      ms: typeof ms === 'number' ? ms : null,
+      p: location.pathname,
+      r: document.referrer || null,
+      sc: screen.width + 'x' + screen.height
+    });
+    try {
+      var blob = new Blob([body], { type: 'text/plain;charset=UTF-8' });
+      if (navigator.sendBeacon && navigator.sendBeacon(ENDPOINT, blob)) return;
+    } catch (e) {}
+    try {
+      fetch(ENDPOINT, {
+        method: 'POST', body: body, keepalive: true, mode: 'cors',
+        headers: { 'Content-Type': 'text/plain;charset=UTF-8' }
+      }).catch(function () {});
+    } catch (e) {}
+  }
+
+  send('pageview');
+
+  /* ---- time on page: only count while the tab is actually visible ---- */
+  var since = document.hidden ? 0 : Date.now(), dwell = 0, sent = -1;
+  function accrue() { if (since) { dwell += Date.now() - since; since = 0; } }
+  function report() {
+    accrue();
+    if (dwell - sent >= 2000) { sent = dwell; send('end', null, dwell); }
+    if (!document.hidden) since = Date.now();
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) report(); else since = Date.now();
+  });
+  window.addEventListener('pagehide', report);
+
+  /* ---- clicks: capture phase, so stopPropagation elsewhere can't hide them ---- */
+  document.addEventListener('click', function (e) {
+    var el = e.target && e.target.closest && e.target.closest('a[href], button');
+    if (!el) return;
+    var label;
+    if (el.tagName === 'A') {
+      label = el.getAttribute('href');
+    } else {
+      label = el.id ||
+        (el.getAttribute('data-act') ? 'act:' + el.getAttribute('data-act') : '') ||
+        (el.getAttribute('aria-label') || el.textContent || '').trim();
+    }
+    if (label) send('click', label.slice(0, 200));
+  }, true);
+
+  /* ---- which card someone opened (covers card click, Enter, and prev/next) ---- */
+  var inspect = document.getElementById('inspect');
+  var details = document.getElementById('mDetails');
+  if (inspect && details) {
+    var last = null;
+    function peek() {
+      if (inspect.hidden) { last = null; return; }
+      var t = document.getElementById('mTitle');
+      var title = t ? t.textContent.trim() : '';
+      if (title && title !== last) { last = title; send('card', title.slice(0, 120)); }
+    }
+    new MutationObserver(peek).observe(details, { childList: true });
+    new MutationObserver(peek).observe(inspect, { attributes: true, attributeFilter: ['hidden'] });
+  }
 })();
 </script>
 </body>
